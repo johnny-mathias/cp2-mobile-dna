@@ -1,8 +1,14 @@
 
-import { doc, getDoc } from "firebase/firestore";
-import { firestore } from "./services/firebase";
+import { collection, getDocs } from "firebase/firestore";
+import { auth, firestore } from "./services/firebase";
 import { useEffect, useState } from "react";
-import { Text, View, StyleSheet, ScrollView } from "react-native";
+import {
+  Text,
+  View,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { useLocalSearchParams } from "expo-router";
 
 export default function Details() {
@@ -12,33 +18,70 @@ export default function Details() {
   const [dna, setDna] = useState("");
   const [age, setAge] = useState(0);
   const [diseases, setDiseases] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const getUser = async () => {
       try {
-        const docRef = doc(
-          firestore,
-          "users",
-          "tHjipiKUIN2D9UyKZYNI"
+        const userEmail = auth.currentUser?.email;
+
+        if (!userEmail) {
+          setError("Usuário não autenticado.");
+          return;
+        }
+
+        // Busca os documentos da coleção users
+        const usersRef = collection(firestore, "users");
+
+        const snapshot = await getDocs(usersRef);
+
+        // Encontra o documento com o email do usuário logado
+        const userDoc = snapshot.docs.find(
+          (document) => document.data().email === userEmail
         );
 
-        const document = await getDoc(docRef);
-
-        if (document.exists()) {
-          const data = document.data();
+        if (userDoc) {
+          const data = userDoc.data();
 
           setName(data.name ?? "");
           setDna(data.dna ?? "");
           setAge(data.age ?? 0);
           setDiseases(data.diseases ?? []);
+
+          console.log("Usuário encontrado:", userDoc.id);
+        } else {
+          setError("Usuário não encontrado no Firestore.");
         }
       } catch (error: any) {
         console.log("Erro:", error.message);
+        setError("Erro ao carregar os dados do usuário.");
+      } finally {
+        setLoading(false);
       }
     };
 
     getUser();
   }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={styles.loadingText}>
+          Carregando informações...
+        </Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -54,7 +97,9 @@ export default function Details() {
           </Text>
         </View>
 
-        <Text style={styles.userName}>{name || "Usuário"}</Text>
+        <Text style={styles.userName}>
+          {name || "Usuário"}
+        </Text>
         <Text style={styles.userEmail}>{email}</Text>
 
         <View style={styles.divider} />
@@ -205,5 +250,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     color: "#222",
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f2f4f7",
+    padding: 20,
+  },
+
+  loadingText: {
+    fontSize: 15,
+    color: "#777",
+    marginTop: 15,
+  },
+
+  errorText: {
+    fontSize: 16,
+    color: "#dc2626",
+    textAlign: "center",
   },
 });
