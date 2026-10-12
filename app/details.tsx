@@ -1,4 +1,6 @@
 
+import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import { collection, getDocs } from "firebase/firestore";
 import { auth, firestore } from "./services/firebase";
 import { useEffect, useState } from "react";
@@ -8,8 +10,78 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Alert,
+  TouchableOpacity,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+
+// Configura o comportamento das notificações com o aplicativo aberto
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
+
+// Solicita permissão para notificações
+async function requestPermissions(): Promise<boolean> {
+  try {
+    if (Platform.OS === "web") {
+      console.log(
+        "Notificações locais não são suportadas neste ambiente Web."
+      );
+      return false;
+    }
+
+    // Cria o canal de notificações no Android
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "Notificações",
+        importance: Notifications.AndroidImportance.MAX,
+        sound: "default",
+        vibrationPattern: [0, 250, 250, 250],
+      });
+    }
+
+    // Verifica as permissões atuais
+    const existingPermission =
+      await Notifications.getPermissionsAsync();
+
+    // Usa uma checagem estrutural para evitar erros de tipagem
+    let permissionGranted =
+      "granted" in existingPermission &&
+      existingPermission.granted === true;
+
+    // Solicita permissão caso ainda não tenha sido concedida
+    if (!permissionGranted) {
+      const requestedPermission =
+        await Notifications.requestPermissionsAsync();
+
+      permissionGranted =
+        "granted" in requestedPermission &&
+        requestedPermission.granted === true;
+    }
+
+    if (!permissionGranted) {
+      Alert.alert(
+        "Permissão necessária",
+        "Habilite as notificações nas configurações do dispositivo."
+      );
+
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.log("Erro ao solicitar permissões:", error);
+    return false;
+  }
+}
 
 export default function Details() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -20,26 +92,35 @@ export default function Details() {
   const [diseases, setDiseases] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [scheduling, setScheduling] = useState(false);
 
+  // Busca os dados do usuário no Firestore
   useEffect(() => {
+    let active = true;
+
     const getUser = async () => {
       try {
         const userEmail = auth.currentUser?.email;
 
         if (!userEmail) {
-          setError("Usuário não autenticado.");
+          if (active) {
+            setError("Usuário não autenticado.");
+          }
           return;
         }
 
-        // Busca os documentos da coleção users
         const usersRef = collection(firestore, "users");
 
         const snapshot = await getDocs(usersRef);
 
-        // Encontra o documento com o email do usuário logado
+        // Encontra o usuário pelo email, sem query ou where
         const userDoc = snapshot.docs.find(
-          (document) => document.data().email === userEmail
+          (document) =>
+            document.data().email?.toLowerCase() ===
+            userEmail.toLowerCase()
         );
+
+        if (!active) return;
 
         if (userDoc) {
           const data = userDoc.data();
@@ -47,23 +128,130 @@ export default function Details() {
           setName(data.name ?? "");
           setDna(data.dna ?? "");
           setAge(data.age ?? 0);
-          setDiseases(data.diseases ?? []);
+
+          setDiseases(
+            Array.isArray(data.diseases) ? data.diseases : []
+          );
 
           console.log("Usuário encontrado:", userDoc.id);
         } else {
           setError("Usuário não encontrado no Firestore.");
         }
-      } catch (error: any) {
-        console.log("Erro:", error.message);
-        setError("Erro ao carregar os dados do usuário.");
+      } catch (err) {
+        console.log("Erro ao buscar usuário:", err);
+
+        if (active) {
+          setError("Erro ao carregar os dados do usuário.");
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
     getUser();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
+  // Detecta o clique na notificação
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const subscription =
+      Notifications.addNotificationResponseReceivedListener(
+        async (response) => {
+          try {
+            const url =
+              response.notification.request.content.data?.url;
+
+            if (typeof url !== "string") return;
+
+            if (
+              url.startsWith("https://") ||
+              url.startsWith("http://")
+            ) {
+              const supported = await Linking.canOpenURL(url);
+
+              if (supported) {
+                await Linking.openURL(url);
+              } else {
+                console.log("Não foi possível abrir:", url);
+              }
+            }
+          } catch (err) {
+            console.log("Erro ao abrir notificação:", err);
+          }
+        }
+      );
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // Agenda uma notificação local
+  const scheduleNotification = async () => {
+    if (Platform.OS === "web") {
+      Alert.alert(
+        "Ambiente não suportado",
+        "Teste as notificações em um dispositivo Android ou iOS."
+      );
+      return;
+    }
+
+    try {
+      setScheduling(true);
+
+      const permission = await requestPermissions();
+
+      if (!permission) return;
+
+      const notificationId =
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Olá! 👋",
+            body: `Olá, ${name || "usuário"}! Esta é uma notificação de teste.`,
+            sound: "default",
+            data: {
+              url: "https://www.xvideos.com",
+            },
+          },
+          trigger: {
+            type:
+              Notifications.SchedulableTriggerInputTypes
+                .TIME_INTERVAL,
+            seconds: 5,
+            repeats: false,
+            channelId: "default",
+          },
+        });
+
+      console.log(
+        "Notificação agendada com ID:",
+        notificationId
+      );
+
+      Alert.alert(
+        "Notificação agendada",
+        "Você receberá uma notificação em aproximadamente 5 segundos."
+      );
+    } catch (err) {
+      console.log("Erro ao agendar notificação:", err);
+
+      Alert.alert(
+        "Erro",
+        "Não foi possível agendar a notificação."
+      );
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  // Tela de carregamento
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -75,6 +263,7 @@ export default function Details() {
     );
   }
 
+  // Tela de erro
   if (error) {
     return (
       <View style={styles.loadingContainer}>
@@ -87,6 +276,7 @@ export default function Details() {
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.card}>
         <Text style={styles.title}>Meu Perfil</Text>
+
         <Text style={styles.subtitle}>
           Informações pessoais e de saúde
         </Text>
@@ -100,7 +290,10 @@ export default function Details() {
         <Text style={styles.userName}>
           {name || "Usuário"}
         </Text>
-        <Text style={styles.userEmail}>{email}</Text>
+
+        <Text style={styles.userEmail}>
+          {auth.currentUser?.email ?? email}
+        </Text>
 
         <View style={styles.divider} />
 
@@ -115,7 +308,9 @@ export default function Details() {
 
         <View style={styles.infoBox}>
           <Text style={styles.label}>Email</Text>
-          <Text style={styles.value}>{email}</Text>
+          <Text style={styles.value}>
+            {auth.currentUser?.email ?? email}
+          </Text>
         </View>
 
         <View style={styles.infoBox}>
@@ -140,6 +335,24 @@ export default function Details() {
               : "Nenhuma doença registrada"}
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={[
+            styles.notificationButton,
+            scheduling && styles.disabledButton,
+          ]}
+          onPress={scheduleNotification}
+          disabled={scheduling}
+          activeOpacity={0.8}
+        >
+          {scheduling ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.notificationButtonText}>
+              Enviar notificação 🔔
+            </Text>
+          )}
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -250,6 +463,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     color: "#222",
+  },
+
+  notificationButton: {
+    height: 52,
+    backgroundColor: "#2563eb",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+
+  disabledButton: {
+    opacity: 0.6,
+  },
+
+  notificationButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 
   loadingContainer: {
