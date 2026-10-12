@@ -15,23 +15,26 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const login = async () => {
-    try {
-      const credential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password,
-      );
+const login = async () => {
+  try {
+    const credential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
 
-      console.log(credential);
+    router.push({
+      pathname: "/details",
+      params: {
+        email: credential.user.email ?? "",
+      },
+    });
 
-      const token = await credential.user.getIdToken();
-      console.log(token);
-    } catch (error: any) {
-      Alert.alert("Erro", "Não foi possível realizar o login.");
-      console.log(error);
-    }
-  };
+  } catch (error: any) {
+    Alert.alert("Erro", "Não foi possível realizar o login.");
+    console.log(error);
+  }
+};
 
   return (
     <View style={styles.container}>
@@ -60,9 +63,7 @@ export default function Login() {
           onChangeText={setPassword}
         />
 
-        <Button title="Entrar" onPress={
-          () => router.push('/details')
-          } />
+        <Button title="Entrar" onPress={login} />
         <Text style={styles.buttonText}>Entrar</Text>
       </View>
     </View>

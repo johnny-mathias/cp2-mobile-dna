@@ -2,35 +2,57 @@ import { doc, getDoc } from "firebase/firestore";
 import { firestore } from "./services/firebase";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 
 export default function Details() {
+  const { email } = useLocalSearchParams<{ email: string }>();
+
   const [name, setName] = useState("");
   const [dna, setDna] = useState("");
   const [age, setAge] = useState(0);
-  const [disease, setDisease] = useState([]);
-
-  // Substituir por modelo DRY depois
-  const docName = doc(firestore, "users", "ceFRGozOpEvQH4VKs8H0");
-  const docDna = doc(firestore, "users", "ceFRGozOpEvQH4VKs8H0");
-  const docAge = doc(firestore, "users", "ceFRGozOpEvQH4VKs8H0");
-  const docDisease = doc(firestore, "users", "ceFRGozOpEvQH4VKs8H0");
+  const [diseases, setDiseases] = useState<string[]>([]);
+  const [status, setStatus] = useState("Carregando...");
 
   useEffect(() => {
-    Promise.all([getDoc(docName), getDoc(docDna), getDoc(docAge), getDoc(docDisease)]).then(
-      ([document1, document2, document3, document4]) => {
-        if (document1.exists()) setName(document1.data().value);
-        if (document2.exists()) setDna(document2.data().value);
-        if (document3.exists()) setAge(document3.data().value);
-        if (document4.exists()) setDisease(document4.data().value);
-      },
-    );
+    const getUser = async () => {
+      try {
+        const docRef = doc(
+          firestore,
+          "users",
+          "tHjipiKUIN2D9UyKZYNI"
+        );
+
+        const document = await getDoc(docRef);
+
+        if (document.exists()) {
+          const data = document.data();
+
+          setName(data.name ?? "");
+          setDna(data.dna ?? "");
+          setAge(data.age ?? 0);
+          setDiseases(data.diseases ?? []);
+
+          setStatus("Dados carregados!");
+        } else {
+          setStatus("Documento não encontrado");
+        }
+      } catch (error: any) {
+        console.log("Erro:", error.message);
+        setStatus(`Erro: ${error.message}`);
+      }
+    };
+
+    getUser();
   }, []);
+
   return (
-    <View>
-      <Text>name: {name}</Text>
-      <Text>dna: {dna}</Text>
-      <Text>age: {age}</Text>
-      <Text>disease: {disease.join(", ")}</Text>
+    <View style={{ padding: 20 }}>
+      <Text>Status: {status}</Text>
+      <Text>Email: {email}</Text>
+      <Text>Name: {name}</Text>
+      <Text>DNA: {dna}</Text>
+      <Text>Age: {age}</Text>
+      <Text>Diseases: {diseases.join(", ")}</Text>
     </View>
   );
 }
