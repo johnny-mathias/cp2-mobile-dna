@@ -10,8 +10,10 @@ export default function RootLayout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen 
-        name="Bosta" 
-        options={{ headerShown: false }}
+        name="details" 
+        options={{ headerShown: false,
+          headerTitle: 'Detalhes do Usuário',
+         }}
       />
     </Stack>
   );

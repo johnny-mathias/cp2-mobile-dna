@@ -1,3 +1,5 @@
+import { doc, setDoc } from "firebase/firestore";
+import { auth, firestore } from "./services/firebase";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -14,7 +16,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { auth } from "./services/firebase";
 import { router } from "expo-router";
 
 type AuthMode = "login" | "register";
@@ -54,6 +55,17 @@ export default function Index() {
         email,
         password,
       );
+
+
+// inside signUp, after createUserWithEmailAndPassword:
+await setDoc(doc(firestore, "users", credential.user.uid), {
+  name: "",
+  email: credential.user.email ?? "",
+  age: 0,
+  dna: "",
+  diseases: [],
+});
+
       alert(`Usuário Cadastrado: ${email}`);
       const token = await credential.user.getIdToken();
       console.log(token);
