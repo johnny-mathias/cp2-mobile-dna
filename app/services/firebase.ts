@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-// import { getAnalytics } from "firebase/analytics";
+import { getAnalytics, isSupported } from "firebase/analytics";
 import { Firestore, getFirestore } from "firebase/firestore";
 
 
@@ -20,4 +20,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const firestore = getFirestore(app)
-// const analytics = getAnalytics(app);
+
+// Resolves to the Analytics instance on web, or null on Android/iOS
+export const analyticsPromise = isSupported()
+  .then((supported) => (supported ? getAnalytics(app) : null))
+  .catch(() => null);

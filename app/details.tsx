@@ -3,6 +3,7 @@ import * as Notifications from "expo-notifications";
 import { collection, getDocs } from "firebase/firestore";
 import { auth, firestore } from "./services/firebase";
 import { useEffect, useState } from "react";
+import { track } from "./services/analytics";
 import {
   Text,
   View,
@@ -14,6 +15,16 @@ import {
   Platform,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+
+useEffect(() => {
+  if (Platform.OS === "web") return;
+
+  const sub = Notifications.addNotificationReceivedListener(() => {
+    track("notification_received");
+  });
+
+  return () => sub.remove();
+}, []);
 
 // Configura o comportamento das notificações com o aplicativo aberto
 if (Platform.OS !== "web") {
@@ -29,6 +40,7 @@ if (Platform.OS !== "web") {
 
 // Solicita permissão para notificações
 async function requestPermissions(): Promise<boolean> {
+  track("notification_opened");
   try {
     if (Platform.OS === "web") {
       console.log(
@@ -207,7 +219,11 @@ export default function Details() {
 
       const permission = await requestPermissions();
 
-      if (!permission) return;
+      if (!permission) {
+        track("notification_permission_denied");
+        return;
+      }
+
 
       const notificationId =
         await Notifications.scheduleNotificationAsync({
@@ -225,6 +241,8 @@ export default function Details() {
             channelId: "default",
           },
         });
+
+      track("notification_scheduled", { delay_seconds: 5 });
 
       console.log(
         "Notificação agendada com ID:",

@@ -1,11 +1,13 @@
 import { doc, setDoc } from "firebase/firestore";
 import { auth, firestore } from "./services/firebase";
+import { track, identify } from "./services/analytics";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useEffect, useState } from "react"; 
+
 import {
   Alert,
   KeyboardAvoidingView,
@@ -28,6 +30,14 @@ export default function Index() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // NEW: screen view when the login screen opens
+  useEffect(() => {
+    track("screen_view", {
+      firebase_screen: "login",
+      firebase_screen_class: "Index",
+    });
+  }, []);
+
   const login = async () => {
     try {
       const credential = await signInWithEmailAndPassword(
@@ -36,6 +46,10 @@ export default function Index() {
         password,
       );
 
+      // NEW
+      identify(credential.user.uid);
+      track("login", { method: "password" });
+
       router.push({
         pathname: "/details",
         params: {
@@ -43,6 +57,7 @@ export default function Index() {
         },
       });
     } catch (error: any) {
+      track("login_failed", { error_code: error?.code ?? "unknown" }); // NEW
       Alert.alert("Erro", "Não foi possível realizar o login.");
       console.log(error);
     }
@@ -56,15 +71,17 @@ export default function Index() {
         password,
       );
 
+      await setDoc(doc(firestore, "users", credential.user.uid), {
+        name: "",
+        email: credential.user.email ?? "",
+        age: 0,
+        dna: "",
+        diseases: [],
+      });
 
-// inside signUp, after createUserWithEmailAndPassword:
-await setDoc(doc(firestore, "users", credential.user.uid), {
-  name: "",
-  email: credential.user.email ?? "",
-  age: 0,
-  dna: "",
-  diseases: [],
-});
+      // NEW
+      identify(credential.user.uid);
+      track("sign_up", { method: "password" });
 
       alert(`Usuário Cadastrado: ${email}`);
       const token = await credential.user.getIdToken();
@@ -76,6 +93,7 @@ await setDoc(doc(firestore, "users", credential.user.uid), {
         },
       });
     } catch (error: any) {
+      track("sign_up_failed", { error_code: error?.code ?? "unknown" }); // NEW
       alert(`Usuário NÃO Cadastrado`);
       console.log(error);
     }
