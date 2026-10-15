@@ -1,30 +1,20 @@
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
+import { useLocalSearchParams } from "expo-router";
 import { collection, getDocs } from "firebase/firestore";
-import { auth, firestore } from "./services/firebase";
 import { useEffect, useState } from "react";
-import { track } from "./services/analytics";
 import {
-  Text,
-  View,
-  StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-
-useEffect(() => {
-  if (Platform.OS === "web") return;
-
-  const sub = Notifications.addNotificationReceivedListener(() => {
-    track("notification_received");
-  });
-
-  return () => sub.remove();
-}, []);
+import { track } from "../services/analytics";
+import { auth, firestore } from "../services/firebase";
 
 // Configura o comportamento das notificações com o aplicativo aberto
 if (Platform.OS !== "web") {
@@ -40,7 +30,6 @@ if (Platform.OS !== "web") {
 
 // Solicita permissão para notificações
 async function requestPermissions(): Promise<boolean> {
-  track("notification_opened");
   try {
     if (Platform.OS === "web") {
       console.log(
@@ -105,6 +94,14 @@ export default function Details() {
   const [error, setError] = useState("");
   const [scheduling, setScheduling] = useState(false);
 
+  // Screen view quando a tela de detalhes abre
+  useEffect(() => {
+    track("screen_view", {
+      firebase_screen: "details",
+      firebase_screen_class: "Details",
+    });
+  }, []);
+
   // Busca os dados do usuário no Firestore
   useEffect(() => {
     let active = true;
@@ -168,6 +165,21 @@ export default function Details() {
     };
   }, []);
 
+  // Notificação recebida com o app aberto
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const subscription = Notifications.addNotificationReceivedListener(
+      () => {
+        track("notification_received");
+      }
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   // Detecta o clique na notificação
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -175,6 +187,8 @@ export default function Details() {
     const subscription =
       Notifications.addNotificationResponseReceivedListener(
         async (response) => {
+          track("notification_opened");
+
           try {
             const url =
               response.notification.request.content.data?.url;
@@ -223,7 +237,6 @@ export default function Details() {
         track("notification_permission_denied");
         return;
       }
-
 
       const notificationId =
         await Notifications.scheduleNotificationAsync({

@@ -1,13 +1,14 @@
-import { doc, setDoc } from "firebase/firestore";
-import { auth, firestore } from "./services/firebase";
-import { track, identify } from "./services/analytics";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-} from "firebase/auth";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useState } from "react"; 
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { identify, track } from "../services/analytics";
+import { auth, firestore } from "../services/firebase";
 
+import { router } from "expo-router";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,7 +19,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
 
 type AuthMode = "login" | "register";
 
@@ -30,7 +30,7 @@ export default function Index() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // NEW: screen view when the login screen opens
+  // Screen view quando a tela de login abre
   useEffect(() => {
     track("screen_view", {
       firebase_screen: "login",
@@ -46,7 +46,6 @@ export default function Index() {
         password,
       );
 
-      // NEW
       identify(credential.user.uid);
       track("login", { method: "password" });
 
@@ -57,7 +56,7 @@ export default function Index() {
         },
       });
     } catch (error: any) {
-      track("login_failed", { error_code: error?.code ?? "unknown" }); // NEW
+      track("login_failed", { error_code: error?.code ?? "unknown" });
       Alert.alert("Erro", "Não foi possível realizar o login.");
       console.log(error);
     }
@@ -79,7 +78,6 @@ export default function Index() {
         diseases: [],
       });
 
-      // NEW
       identify(credential.user.uid);
       track("sign_up", { method: "password" });
 
@@ -93,7 +91,7 @@ export default function Index() {
         },
       });
     } catch (error: any) {
-      track("sign_up_failed", { error_code: error?.code ?? "unknown" }); // NEW
+      track("sign_up_failed", { error_code: error?.code ?? "unknown" });
       alert(`Usuário NÃO Cadastrado`);
       console.log(error);
     }

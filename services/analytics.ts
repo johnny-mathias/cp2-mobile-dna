@@ -3,7 +3,7 @@ import { logEvent, setUserId } from "firebase/analytics";
 import { analyticsPromise } from "./firebase";
 
 const MEASUREMENT_ID = "G-3TH41QWTT9";
-const API_SECRET = "PASTE_YOUR_API_SECRET";
+const API_SECRET = "PASTE_YOUR_API_SECRET"; // Firebase Console > Data Streams > Measurement Protocol API secrets
 
 // Identifiers for native events (new on each app launch)
 const clientId = `${Date.now()}.${Math.floor(Math.random() * 1e9)}`;
